@@ -69,8 +69,9 @@ MasrALPR/
 │
 ├── frontend/
 │   ├── index.html           # Main application interface
-│   ├── style.css            # Futuristic UI styling
-│   └── script.js            # Client-side logic & API calls
+    └── static/
+│     └── style.css            # Futuristic UI styling
+│     └── script.js            # Client-side logic & API calls
 │
 ├── data/
 │   └── database.db          # SQLite database (auto-created)
