@@ -35,9 +35,9 @@ def perform_ocr(img):
     
     # Sort detections from left to right based on x-coordinate
     detections.sort(key=lambda x: x[0])
-    
     # Separate numbers and letters dynamically
     nums_list = [d[1] for d in detections if d[1].isdigit() or d[1] in '٠١٢٣٤٥٦٧٨٩']
+    detections.sort(key=lambda x: x[1])
     lets_list = [d[1] for d in detections if d[1] not in nums_list]
 
     # Join them with a clear separation
