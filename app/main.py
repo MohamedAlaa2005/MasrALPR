@@ -44,8 +44,8 @@ def perform_ocr(img):
     nums = "".join(nums_list)
     lets = " ".join(lets_list)
     
-    # Return formatted text (Letters on left, Numbers on right for Egyptian style)
-    return f"{lets} {nums}".strip(" |")
+    # Return formatted text
+    return f"{lets} {nums}"
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
