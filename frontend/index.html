@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPR System — Egypt Traffic Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <div class="grain-overlay"></div>
+    <div class="scan-line"></div>
+    
+    <div class="app-wrapper">
+        <!-- Main Header -->
+        <header class="main-header">
+            <div class="header-badge">ACTIVE</div>
+            <h1 class="logo">
+                <span class="logo-text">ALPR</span>
+                <span class="logo-sub">SYSTEM</span>
+            </h1>
+            <div class="header-meta">
+                <span class="location">Cairo, Egypt</span>
+                <span class="status-dot"></span>
+                <span class="live-label">LIVE</span>
+            </div>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="grid-container">
+            
+            <!-- Scanner Module -->
+            <section class="module scanner-module">
+                <div class="module-header">
+                    <div class="module-number">01</div>
+                    <h2 class="module-title">SCAN VEHICLE</h2>
+                    <div class="header-line"></div>
+                </div>
+                
+                <div class="scan-zone">
+                    <input type="file" id="camIn" hidden accept="image/*">
+                    <button class="scan-trigger" id="scanBtn">
+                        <div class="scan-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M9 9h.01M15 9h.01M9 15h6"/>
+                            </svg>
+                        </div>
+                        <span class="scan-label">UPLOAD IMAGE</span>
+                        <div class="scan-pulse"></div>
+                    </button>
+                </div>
+
+                <div id="resBox" class="scan-result">
+                    <div class="result-header">DETECTION RESULT</div>
+                    <div class="result-plate-display">
+                        <div id="resultPlate" class="plate-number">---</div>
+                    </div>
+                    <div id="resultStatus" class="result-verdict"></div>
+                </div>
+            </section>
+
+            <!-- Blacklist Control Module -->
+            <section class="module blacklist-module">
+                <div class="module-header">
+                    <div class="module-number">02</div>
+                    <h2 class="module-title">BLACKLIST CONTROL</h2>
+                    <div class="header-line"></div>
+                </div>
+
+                <div class="control-panel">
+                    <div class="control-group">
+                        <label class="control-label">MANUAL ENTRY</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="textIn" class="plate-input" placeholder="ABC-1234">
+                            <button class="control-btn primary-btn" id="blockTextBtn">
+                                <span>ADD TO BLACKLIST</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="separator">
+                        <span>OR</span>
+                    </div>
+
+                    <div class="control-group">
+                        <label class="control-label">IMAGE DETECTION</label>
+                        <input type="file" id="photoIn" hidden accept="image/*">
+                        <button class="control-btn secondary-btn" id="blockPhotoBtn">
+                            <span>SCAN & BLOCK</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="blacklist-view">
+                    <div class="view-header">
+                        <span>BLOCKED PLATES</span>
+                        <div class="count-badge" id="blockCount">0</div>
+                    </div>
+                    <div id="blList" class="entries-list"></div>
+                </div>
+            </section>
+
+            <!-- Activity Log Module -->
+            <section class="module log-module">
+                <div class="module-header">
+                    <div class="module-number">03</div>
+                    <h2 class="module-title">ACTIVITY LOG</h2>
+                    <div class="header-line"></div>
+                </div>
+
+                <div class="log-view">
+                    <div id="histList" class="log-entries"></div>
+                </div>
+            </section>
+
+        </div>
+
+        <!-- Footer Info -->
+        <footer class="app-footer">
+            <div class="footer-line"></div>
+            <div class="footer-content">
+                <span>AUTOMATED LICENSE PLATE RECOGNITION</span>
+                <span class="separator">•</span>
+                <span>TRAFFIC ENFORCEMENT SYSTEM</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="static/script.js"></script>
+</body>
+</html>
