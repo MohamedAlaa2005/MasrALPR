@@ -101,7 +101,6 @@ async function addPhoto() {
         });
 
         const data = await response.json();
-        alert(`BLOCKED: ${data.plate}`);
         loadBlacklist();
     } catch (error) {
         console.error('Error adding photo to blacklist:', error);
@@ -157,10 +156,6 @@ async function loadBlacklist() {
 
 // Delete rule from blacklist
 async function deleteRule(id) {
-    if (!confirm('REMOVE THIS PLATE FROM BLACKLIST?')) {
-        return;
-    }
-
     try {
         await fetch(`/blacklist/remove/${id}`, {
             method: 'DELETE'
