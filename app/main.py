@@ -5,87 +5,183 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from ultralytics import YOLO
 from .database import SessionLocal, PlateRecord, BlacklistedPlate
+from .image_enhancer import ImageEnhancer
+from .multi_enhance import MultiEnhancer
+from .recognition_improved import recognize_characters_improved, recognize_with_voting
+
 
 app = FastAPI()
 
 app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 
-model = YOLO("app/weights/best.pt")
+# Models
+plate_detector = YOLO("app/weights/plate.pt")
+char_recognizer = YOLO("app/weights/letter&number.pt")
 
-ARABIC_MAP = {
-    '1':'١', '2':'٢', '3':'٣', '4':'٤', '5':'٥', '6':'٦', '7':'٧', '8':'٨', '9':'٩',
-    'a':'أ', 'b':'ب', 'd':'د', 'r':'ر', 'sad':'ص', 'sen':'س', 't':'ط', 'en':'ع', 
-    'f':'ف', 'q':'ق', 'k':'ك', 'l':'ل', 'mem':'م', 'non':'ن', 'h':'هـ', 'w':'و', 'y':'ي'
-}
+# Enhancers
+enhancer = ImageEnhancer()
+multi_enhancer = MultiEnhancer()
+
+# Post-processor
+
+
+ARABIC_DIGITS = set('٠١٢٣٤٥٦٧٨٩0123456789')
+
 
 def get_db():
     db = SessionLocal()
-    try: yield db
-    finally: db.close()
+    try: 
+        yield db
+    finally: 
+        db.close()
+
+
+def detect_plate_location(img):
+    results = plate_detector(img)[0]
+    plates = []
+    
+    for box in results.boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        confidence = box.conf[0].item()
+        
+        if confidence > 0.5:
+            padding = 50
+            h, w = img.shape[:2]
+            x1 = max(0, x1 - padding)
+            y1 = max(0, y1 - padding)
+            x2 = min(w, x2 + padding)
+            y2 = min(h, y2 + padding)
+            
+            plate_crop = img[y1:y2, x1:x2]
+            plates.append({
+                'image': plate_crop,
+                'bbox': (x1, y1, x2, y2),
+                'confidence': confidence
+            })
+    
+    return plates
 
 
 def perform_ocr(img):
-    results = model(img)[0]
-    detections = []
-    for box in results.boxes:
-        label = model.names[int(box.cls[0])]
-        if label != 'car plate':
-            # Store the x-coordinate and the Arabic character
-            detections.append((box.xywh[0][0].item(), ARABIC_MAP.get(label, label)))
+    """
+    Improved OCR pipeline with multiple attempts and voting
+    """
+    # Step 1: Enhance full image
+    enhanced_img = enhancer.enhance(img)
     
-    # Sort detections from left to right based on x-coordinate
-    detections.sort(key=lambda x: x[0])
-    # Separate numbers and letters dynamically
-    nums_list = [d[1] for d in detections if d[1].isdigit() or d[1] in '٠١٢٣٤٥٦٧٨٩']
-    detections.sort(key=lambda x: x[1])
-    lets_list = [d[1] for d in detections if d[1] not in nums_list]
+    # Step 2: Detect plates
+    plates = detect_plate_location(enhanced_img)
+    
+    if not plates:
+        return "Error 404"
+    
+    # Get best plate
+    best_plate = max(plates, key=lambda p: p['confidence'])
+    plate_crop = best_plate['image']
+    
+    # Step 3: Generate multiple enhanced versions of plate
+    plate_versions = multi_enhancer.get_all_versions(plate_crop)
+    
+    # Step 4: Run recognition with voting
+    plate_text = recognize_with_voting(char_recognizer, plate_versions)
 
-    # Join them with a clear separation
-    nums = "".join(nums_list)
-    lets = " ".join(lets_list)
-    
-    # Return formatted text
-    return f"{lets} {nums}"
+    return plate_text
+
+
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...), db: Session = Depends(get_db)):
     contents = await file.read()
     img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    
     plate_text = perform_ocr(img)
+    
+    if not plate_text:
+        return {"plate": "", "allowed": True, "error": "No plate detected"}
     
     blacklist = db.query(BlacklistedPlate).all()
     is_allowed = not any(item.plate_text in plate_text for item in blacklist)
 
     img_name = f"{uuid.uuid4()}.jpg"
-    cv2.imwrite(f"static/captures/{img_name}", img)
+    
     db.add(PlateRecord(text=plate_text, is_allowed=is_allowed, image_name=img_name))
     db.commit()
+    
     return {"plate": plate_text, "allowed": is_allowed}
+
+
+@app.post("/predict-debug")
+async def predict_debug(file: UploadFile = File(...)):
+    """
+    Debug endpoint that returns intermediate steps
+    """
+    contents = await file.read()
+    img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
+    
+    # Step 1: Enhance
+    enhanced_img = enhancer.enhance(img)
+    
+    # Step 2: Detect plates
+    plates = detect_plate_location(enhanced_img)
+    
+    debug_info = {
+        "original_size": img.shape[:2],
+        "enhanced_size": enhanced_img.shape[:2],
+        "plates_detected": len(plates),
+        "plates": []
+    }
+    
+    for i, plate in enumerate(plates):
+        plate_crop = plate['image']
+        enhanced_plate = enhancer.enhance_plate(plate_crop)
+        plate_text = recognize_characters_improved(enhanced_plate)
+        
+        debug_info["plates"].append({
+            "index": i,
+            "bbox": plate['bbox'],
+            "confidence": plate['confidence'],
+            "crop_size": plate_crop.shape[:2],
+            "enhanced_size": enhanced_plate.shape[:2],
+            "text": plate_text
+        })
+    
+    return debug_info
+
 
 @app.post("/blacklist/add-by-photo")
 async def add_bl_photo(file: UploadFile = File(...), db: Session = Depends(get_db)):
     contents = await file.read()
     img = cv2.imdecode(np.frombuffer(contents, np.uint8), cv2.IMREAD_COLOR)
     plate_text = perform_ocr(img)
-    if not plate_text: raise HTTPException(400, "No plate detected")
+    
+    if not plate_text: 
+        raise HTTPException(400, "No plate detected")
     
     if not db.query(BlacklistedPlate).filter_by(plate_text=plate_text).first():
         db.add(BlacklistedPlate(plate_text=plate_text))
         db.commit()
+    
     return {"status": "success", "plate": plate_text}
 
+
 @app.get("/blacklist")
-def get_bl(db: Session = Depends(get_db)): return db.query(BlacklistedPlate).all()
+def get_bl(db: Session = Depends(get_db)): 
+    return db.query(BlacklistedPlate).all()
+
 
 @app.post("/blacklist/add")
 def add_bl(plate: str, db: Session = Depends(get_db)):
-    db.add(BlacklistedPlate(plate_text=plate)); db.commit()
+    db.add(BlacklistedPlate(plate_text=plate))
+    db.commit()
     return {"status": "added"}
+
 
 @app.delete("/blacklist/remove/{id}")
 def rem_bl(id: int, db: Session = Depends(get_db)):
     db.query(BlacklistedPlate).filter_by(id=id).delete()
-    db.commit(); return {"status": "deleted"}
+    db.commit()
+    return {"status": "deleted"}
+
 
 @app.get("/history")
 def get_hist(db: Session = Depends(get_db)):
@@ -93,4 +189,5 @@ def get_hist(db: Session = Depends(get_db)):
 
 
 @app.get("/")
-def home(): return FileResponse('frontend/index.html')
+def home(): 
+    return FileResponse('frontend/index.html')
